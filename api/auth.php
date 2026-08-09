@@ -1,5 +1,5 @@
 <?php
-header('Content-type: application/json');
+header('Content-Type: application/json');
 require_once __DIR__ . '/../app/controller/AuthController.php';
 
 $method =$_SERVER['REQUEST_METHOD'];
