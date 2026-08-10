@@ -16,6 +16,9 @@ class AuthController
     {
         if (class_exists('User')) {
             $this->userModel = new User();
+            if ($this->userModel) {
+                $this->userModel->ensureDefaultUsers();
+            }
         } else {
             $this->userModel = null;
         }
