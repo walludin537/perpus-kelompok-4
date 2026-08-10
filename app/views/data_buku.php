@@ -30,12 +30,15 @@
                 <h1 class="text-xl font-medium mb-1">Data buku</h1>
                 <p class="text-gray-500 text-sm">Kelola koleksi buku perpustakaan.</p>
             </div>
-            <button onclick="openModal()" class="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2 rounded-lg">+ Tambah buku</button>
+            <div class="flex gap-2 flex-wrap">
+                <button id="btn-add-category" onclick="openCategoryModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm px-4 py-2 rounded-lg">+ Tambah kategori</button>
+                <button id="btn-add-book" onclick="openModal()" class="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2 rounded-lg">+ Tambah buku</button>
+            </div>
         </div>
 
         <div class="flex gap-3 mb-4 flex-wrap">
             <input id="search" type="text" placeholder="Cari judul atau ISBN..." class="flex-1 min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm">
-            <select id="filter-kategori" class="border border-gray-300 rounded-lg px3 py-2 text-sm min-w-[160px]">
+            <select id="filter-kategori" class="border border-gray-300 rounded-lg px-3 py-2 text-sm min-w-[160px]">
                 <option value="">Semua kategori</option>
             </select>
         </div>
@@ -80,24 +83,47 @@
 
                 <div class="flex gap-3">
                     <div class="flex-1">
-                        <label class="text-xs text-gray-500 block mb1">Kategori</label>
-                        <select id="category_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+                            <label class="text-xs text-gray-500 block mb-1">Kategori</label>
+                            <select id="category_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-xs text-gray-500 block mb-1">Stok</label>
+                            <input id="stok" type="number" min="0" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        </div>
                     </div>
-                    <div class="flex-1">
-                        <label class="text-xs text-gray-500 block mb-1">Stok</label>
-                        <input id="stok" type="number" min="0" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+
+                    <p id="form-error" class="text-sm text-red-600 hidden"></p>
+
+                    <div class="flex gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm">Batal</button>
+                        <button type="submit" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-sm">Simpan</button>
                     </div>
-                </div>
-
-                <p id="form-error" class="text-sm text-red-600 hidden"></p>
-
-                <div class="flex gap-2 pt-2">
-                    <button type="button" onclick="closeModal()" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm">Batal</button>
-                    <button type="submit" class="flex-1 bg-orange-500 hover:bgorange-600 text-white rounded-lg py-2 text-sm">Simpan</button>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
-    </div>
+
+        <div id="modal-category" class="hidden fixed inset-0 bg-black/45 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <p class="font-medium">Tambah kategori baru</p>
+                    <button onclick="closeCategoryModal()" class="text-gray-400 hover:text-gray700">&times;</button>
+                </div>
+
+                <form id="form-kategori" class="space-y-3">
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">Nama kategori</label>
+                        <input id="nama-kategori" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    </div>
+
+                    <p id="category-error" class="text-sm text-red-600 hidden"></p>
+
+                    <div class="flex gap-2 pt-2">
+                        <button type="button" onclick="closeCategoryModal()" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm">Batal</button>
+                        <button type="submit" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-sm">Simpan kategori</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
     <script>
         requireRole('admin');
@@ -113,17 +139,179 @@
 
             const filterEl = document.getElementById('filter-kategori');
             const selectEl = document.getElementById('category_id');
+            filterEl.innerHTML = '<option value="">Semua kategori</option>';
+            selectEl.innerHTML = '<option value="">Pilih kategori</option>';
 
             categories.forEach(c => {
                 filterEl.innerHTML += `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`;
                 selectEl.innerHTML += `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`;
             });
+
+            const addBookButton = document.getElementById('btn-add-book');
+            if (categories.length === 0) {
+                addBookButton.disabled = true;
+                addBookButton.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                addBookButton.disabled = false;
+                addBookButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
         }
 
         async function loadBooks() {
             const search = document.getElementById('search').value;
             const categoryId = document.getElementById('filter-kategori').value;
 
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (categoryId) params.append('category_id', categoryId);
+
+            const res = await apiFetch('/books.php?' + params.toString());
+            if (!res) return;
+
+            const tbody = document.getElementById('table-buku');
+            const books = res.data || [];
+            currentBooks = books;
+
+            if (books.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Belum ada buku.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = books.map(b => `
+                <tr>
+                    <td class="px-4 py-3">${escapeHtml(b.judul)}</td>
+                    <td class="px-4 py-3 text-gray-500">${escapeHtml(b.isbn)}</td>
+                    <td class="px-4 py-3"><span class="text-xs px-2 py-1 rounded bg-orange-50 text-orange-800">${escapeHtml(b.nama_kategori)}</span></td>
+                    <td class="px-4 py-3 text-center ${b.stok == 0 ? 'text-red-600' : ''}">${b.stok}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="editBuku(${b.id})" class="text-gray-500 hover:text-gray-800 mr-3">Edit</button>
+                        <button onclick="hapusBuku(${b.id})" class="text-red-600 hover:text-red-800">Hapus</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function editBuku(id) {
+            const book = currentBooks.find(b => b.id == id);
+            if (book) openModal(book);
+        }
+
+        function openModal(book = null) {
+            if (categories.length === 0) {
+                alert('Tambahkan kategori buku terlebih dahulu sebelum menambah buku.');
+                openCategoryModal();
+                return;
+            }
+
+            document.getElementById('form-error').classList.add('hidden');
+            document.getElementById('form-buku').reset();
+
+            if (book) {
+                document.getElementById('modal-title').textContent = 'Edit buku';
+                document.getElementById('book-id').value = book.id;
+                document.getElementById('judul').value = book.judul;
+                document.getElementById('isbn').value = book.isbn;
+                document.getElementById('category_id').value = book.category_id;
+                document.getElementById('stok').value = book.stok;
+            } else {
+                document.getElementById('modal-title').textContent = 'Tambah buku baru';
+                document.getElementById('book-id').value = '';
+            }
+
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        function openCategoryModal() {
+            document.getElementById('category-error').classList.add('hidden');
+            document.getElementById('nama-kategori').value = '';
+            document.getElementById('modal-category').classList.remove('hidden');
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('modal-category').classList.add('hidden');
+        }
+
+        document.getElementById('form-buku').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const id = document.getElementById('book-id').value;
+            const payload = {
+                judul: document.getElementById('judul').value,
+                isbn: document.getElementById('isbn').value,
+                category_id: document.getElementById('category_id').value,
+                stok: document.getElementById('stok').value
+            };
+
+            const res = await apiFetch(id ? `/books.php?id=${id}` : '/books.php', {
+                method: id ? 'PUT' : 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.success) {
+                const err = document.getElementById('form-error');
+                err.textContent = res.message;
+                err.classList.remove('hidden');
+                return;
+            }
+
+            closeModal();
+            loadBooks();
+        });
+
+        document.getElementById('form-kategori').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const namaKategori = document.getElementById('nama-kategori').value.trim();
+            if (!namaKategori) {
+                const err = document.getElementById('category-error');
+                err.textContent = 'Nama kategori wajib diisi';
+                err.classList.remove('hidden');
+                return;
+            }
+
+            const res = await apiFetch('/categories.php', {
+                method: 'POST',
+                body: JSON.stringify({ nama_kategori: namaKategori })
+            });
+
+            if (!res || !res.success) {
+                const err = document.getElementById('category-error');
+                err.textContent = res ? res.message : 'Gagal menambahkan kategori';
+                err.classList.remove('hidden');
+                return;
+            }
+
+            closeCategoryModal();
+            await loadCategories();
+            loadBooks();
+        });
+
+        async function hapusBuku(id) {
+            if (!confirm('Yakin hapus buku ini?')) return;
+            const res = await apiFetch(`/books.php?id=${id}`, { method: 'DELETE' });
+            if (res.success) loadBooks();
+            else alert(res.message);
+        }
+
+        document.getElementById('search').addEventListener('input', debounce(loadBooks, 400));
+        document.getElementById('filter-kategori').addEventListener('change', loadBooks);
+
+        function debounce(fn, delay) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delay);
+            };
+        }
+
+        loadCategories().then(loadBooks);
+    </script>
+</body>
+</html>
             const params = new URLSearchParams();
             if (search) params.append('search', search);
             if (categoryId) params.append('category_id', categoryId);
@@ -160,6 +348,12 @@
         }
 
         function openModal(book = null) {
+            if (categories.length === 0) {
+                alert('Tambahkan kategori buku terlebih dahulu sebelum menambah buku.');
+                openCategoryModal();
+                return;
+            }
+
             document.getElementById('form-error').classList.add('hidden');
             document.getElementById('form-buku').reset();
 

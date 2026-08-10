@@ -21,7 +21,7 @@ switch ($method) {
         break;
 
     case 'PUT':
-        Auth::checkRolde('admin');
+        Auth::checkRole('admin');
         if (!$id){
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => 'ID kategori wajib disertakan']);

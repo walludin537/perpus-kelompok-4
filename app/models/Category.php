@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../config/Database.php';
 
 class Category
 {
-    /** @var \PDO */
+
     private $db;
 
     public function __construct()
@@ -11,19 +11,13 @@ class Category
         $this->db = Database::getConnection();
     }
 
-     /**
-      * @return array
-      */
-     public function getAll(): array
+       public function getAll(): array
      {
          $stmt = $this->db->query("SELECT * FROM categories ORDER BY nama_kategori ASC");
          return $stmt->fetchAll(PDO::FETCH_ASSOC);
      }
 
-    /**
-     * @param int $id
-     * @return array|false
-     */
+   
     public function getById(int $id)
     {
         $stmt = $this->db->prepare("SELECT * FROM categories WHERE id = :id");
