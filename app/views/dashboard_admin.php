@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Admin - Perpustakaan Sekolah</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="auth-guard.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
