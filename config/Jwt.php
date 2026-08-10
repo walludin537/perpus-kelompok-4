@@ -1,17 +1,13 @@
-<?php  
- * Class Jwt  
- * Implementasi JWT (JSON Web Token) sederhana dengan algoritma HS256.  
- * Dibuat manual (tanpa library eksternal / composer) agar sesuai  * ketentuan proyek:  tidak pakai library eksternal kecuali diminta.
- */ 
- class Jwt 
- { 
- Ganti dengan secret key yang lebih aman untuk production     
- private static string $secretKey = 'ganti_secret_key_kelompok4_2026';    
- private static int $expireSeconds = 86400; // 24 jam 
- private static function base64UrlEncode(string $data): string    
- {        
- return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');   
- }      
+<?php
+class Jwt
+{
+    private static $secretKey = 'ganti_secret_key_kelompok4_2026';
+    private static $expireSeconds = 86400; // 24 jam
+
+    private static function base64UrlEncode($data)
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
 
     private static function base64UrlDecode($data)
     {
