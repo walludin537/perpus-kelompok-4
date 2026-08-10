@@ -1,5 +1,5 @@
 <?php  
- * Class Jwt  
+// * Class Jwt  
  * Implementasi JWT (JSON Web Token) sederhana dengan algoritma HS256.  
  * Dibuat manual (tanpa library eksternal / composer) agar sesuai  * ketentuan proyek:  tidak pakai library eksternal kecuali diminta.
  */ 
