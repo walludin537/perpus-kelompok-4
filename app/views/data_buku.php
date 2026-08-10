@@ -133,9 +133,7 @@
 
         async function loadCategories() {
             const res = await apiFetch('/categories.php');
-            if (!res) return;
-
-            categories = res.data || [];
+            categories = res && res.success ? res.data || [] : [];
 
             const filterEl = document.getElementById('filter-kategori');
             const selectEl = document.getElementById('category_id');
@@ -166,9 +164,12 @@
             if (categoryId) params.append('category_id', categoryId);
 
             const res = await apiFetch('/books.php?' + params.toString());
-            if (!res) return;
-
             const tbody = document.getElementById('table-buku');
+            if (!res || !res.success) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Gagal memuat buku.</td></tr>';
+                return;
+            }
+
             const books = res.data || [];
             currentBooks = books;
 
@@ -182,7 +183,7 @@
                     <td class="px-4 py-3">${escapeHtml(b.judul)}</td>
                     <td class="px-4 py-3 text-gray-500">${escapeHtml(b.isbn)}</td>
                     <td class="px-4 py-3"><span class="text-xs px-2 py-1 rounded bg-orange-50 text-orange-800">${escapeHtml(b.nama_kategori)}</span></td>
-                    <td class="px-4 py-3 text-center ${b.stok == 0 ? 'text-red-600' : ''}">${b.stok}</td>
+                    <td class="px-4 py-3 text-center ${b.stok == 0 ? 'text-red-600' : ''}">${escapeHtml(b.stok)}</td>
                     <td class="px-4 py-3 text-right">
                         <button onclick="editBuku(${b.id})" class="text-gray-500 hover:text-gray-800 mr-3">Edit</button>
                         <button onclick="hapusBuku(${b.id})" class="text-red-600 hover:text-red-800">Hapus</button>
@@ -251,9 +252,9 @@
                 body: JSON.stringify(payload)
             });
 
-            if (!res.success) {
+            if (!res || !res.success) {
                 const err = document.getElementById('form-error');
-                err.textContent = res.message;
+                err.textContent = res ? res.message : 'Gagal menyimpan buku';
                 err.classList.remove('hidden');
                 return;
             }
@@ -293,8 +294,8 @@
         async function hapusBuku(id) {
             if (!confirm('Yakin hapus buku ini?')) return;
             const res = await apiFetch(`/books.php?id=${id}`, { method: 'DELETE' });
-            if (res.success) loadBooks();
-            else alert(res.message);
+            if (res && res.success) loadBooks();
+            else alert(res ? res.message : 'Gagal menghapus buku');
         }
 
         document.getElementById('search').addEventListener('input', debounce(loadBooks, 400));
@@ -312,32 +313,6 @@
     </script>
 </body>
 </html>
-            const params = new URLSearchParams();
-            if (search) params.append('search', search);
-            if (categoryId) params.append('category_id', categoryId);
-
-            const res = await apiFetch('/books.php?' + params.toString());
-            if (!res) return;
-
-            const tbody = document.getElementById('table-buku');
-            const books = res.data || [];
-            currentBooks = books;
-
-            if (books.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center textgray-400">Belum ada buku.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = books.map(b => `
-                <tr>
-                    <td class="px-4 py-3">${escapeHtml(b.judul)}</td>
-                    <td class="px-4 py-3 text-gray-500">${escapeHtml(b.isbn)}</td>
-                    <td class="px-4 py-3"><span class="text-xs px-2 py-1 rounded bgorange-50 text-orange-800">${escapeHtml(b.nama_kategori)}</span></td>
-                    <td class="px-4 py-3 text-center ${b.stok == 0 ? 'text-red-600' : ''}">${b.stok}</td>
-                    <td class="px-4 py-3 text-right">
-                        <button onclick="editBuku(${b.id})" class="text-gray-500 hover:text-gray-800 mr-3">Edit</button>
-                        <button onclick="hapusBuku(${b.id})" class="text-red-600 hover:text-red-800">Hapus</button>
-                    </td>
                 </tr>
             `).join('');
         }

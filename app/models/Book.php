@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../config/Database.php';
 
 class Book
 {
-    /** @var \PDO */
+    
     private $db;
 
     public function __construct()
@@ -45,10 +45,7 @@ class Book
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * @param int $id
-     * @return array|false
-     */
+   
     public function getById(int $id)
     {
         $stmt = $this->db->prepare($this->baseQuery() . ' WHERE books.id = :id');
@@ -62,10 +59,6 @@ class Book
      * kalau ada yang mengajukan pinjam buku yang sama secara bersamaan.
      */
 
-    /**
-     * @param int $id
-     * @return array|false
-     */
     public function getByIdForUpdate(int $id)
     {
         $stmt = $this->db->prepare('SELECT * FROM books WHERE id = :id FOR UPDATE');
