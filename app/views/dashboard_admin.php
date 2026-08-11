@@ -56,51 +56,121 @@
     </div>
 
     <script>
+        const API_BASE = '../../api';
+
+        function requireRole(requiredRole) {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+            if (!token || !user) {
+                window.location.href = 'login.php';
+                return null;
+            }
+
+            if (user.role !== requiredRole) {
+                window.location.href = user.role === 'admin' ? 'dashboard_admin.php' : 'peminjaman_siswa.php';
+                return null;
+            }
+
+            return user;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = { ...(options.headers || {}) };
+
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            if (options.body && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+            }
+
+            const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : '/' + path}`, {
+                ...options,
+                headers,
+            });
+
+            const text = await response.text();
+            let payload = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (e) {
+                payload = { success: false, message: 'Respons tidak valid' };
+            }
+
+            if (!response.ok || (payload && payload.success === false)) {
+                throw new Error(payload?.message || 'Permintaan gagal');
+            }
+
+            return payload;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        function formatTanggal(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.php';
+        }
+
         requireRole('admin');
 
         async function loadDashboard() {
-            const [booksRes, loansRes] = await Promise.all([
-                apiFetch('/books.php'),
-                apiFetch('/loans.php')
-            ]);
+            try {
+                const [booksRes, loansRes] = await Promise.all([
+                    apiFetch('/books.php'),
+                    apiFetch('/loans.php')
+                ]);
 
-            if (!booksRes || !loansRes) return;
+                const books = booksRes?.data || [];
+                const loans = loansRes?.data || [];
 
-            const books = booksRes.data || [];
-            const loans = loansRes.data || [];
+                document.getElementById('stat-total-buku').textContent = books.length;
+                document.getElementById('stat-total-stok').textContent = books.reduce((sum, b) => sum + Number(b.stok || 0), 0);
+                document.getElementById('stat-aktif').textContent = loans.filter(l => l.status === 'dipinjam').length;
+                document.getElementById('stat-terlambat').textContent = loans.filter(l => l.status === 'terlambat').length;
 
-            document.getElementById('stat-total-buku').textContent = books.length;
-            document.getElementById('stat-total-stok').textContent = books.reduce((sum, b) => sum + Number(b.stok), 0);
-            document.getElementById('stat-aktif').textContent = loans.filter(l => l.status === 'dipinjam').length;
-            document.getElementById('stat-terlambat').textContent = loans.filter(l => l.status === 'terlambat').length;
+                const list = document.getElementById('aktivitas-list');
+                if (loans.length === 0) {
+                    list.innerHTML = '<p class="text-gray-400 py-3">Belum ada aktivitas peminjaman.</p>';
+                    return;
+                }
 
-            const list = document.getElementById('aktivitas-list');
-            if (loans.length === 0) {
-                list.innerHTML = '<p class="text-gray-400 py-3">Belum ada aktivitas peminjaman.</p>';
-                return;
-            }
+                const badgeClass = {
+                    dipinjam: 'bg-amber-50 text-amber-800',
+                    dikembalikan: 'bg-blue-50 text-blue-800',
+                    terlambat: 'bg-red-50 text-red-800'
+                };
 
-            const badgeClass = {
-                dipinjam: 'bg-amber-50 text-amber-800',
-                dikembalikan: 'bg-blue-50 text-blue-800',
-                terlambat: 'bg-red-50 text-red-800'
-            };
+                const badgeLabel = {
+                    dipinjam: 'Dipinjam',
+                    dikembalikan: 'Dikembalikan',
+                    terlambat: 'Terlambat'
+                };
 
-            const badgeLabel = {
-                dipinjam: 'Dipinjam',
-                dikembalikan: 'Dikembalikan',
-                terlambat: 'Terlambat'
-            };
-
-            list.innerHTML = loans.slice(0, 8).map(l => `
-                <div class="flex items-center justify-between py-3">
-                    <div>
-                        <p>${escapeHtml(l.nama_siswa)} - <span class="fontmedium">${escapeHtml(l.judul)}</span></p>
-                        <p class="text-xs text-gray-400">Dipinjam ${formatTanggal(l.tanggal_pinjam)}</p>
+                list.innerHTML = loans.slice(0, 8).map(l => `
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <p>${escapeHtml(l.nama_siswa)} - <span class="font-medium">${escapeHtml(l.judul)}</span></p>
+                            <p class="text-xs text-gray-400">Dipinjam ${formatTanggal(l.tanggal_pinjam)}</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded ${badgeClass[l.status] || 'bg-gray-50 text-gray-700'}">${badgeLabel[l.status] || l.status}</span>
                     </div>
-                    <span class="text-xs px-2 py-1 rounded ${badgeClass[l.status]}">${badgeLabel[l.status]}</span>
-                </div>
-            `).join('');
+                `).join('');
+            } catch (error) {
+                document.getElementById('aktivitas-list').innerHTML = `<p class="text-red-500 py-3">${escapeHtml(error.message)}</p>`;
+            }
         }
 
         loadDashboard();

@@ -48,7 +48,7 @@ class LoanController
 
         $this->loanModel->updateOverdueStatuses();
         $status = $_GET['status'] ?? null;
-        $loans = $this->loanModel->getByUser($userId, $status);
+        $loans = $this->loanModel->getByUserId($userId, $status);
         $this->respond(true, 'Riwayat peminjaman berhasil diambil', $loans);
     }
 

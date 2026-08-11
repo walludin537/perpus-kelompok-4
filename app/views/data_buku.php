@@ -123,5 +123,237 @@
                 </form>
             </div>
         </div>
+    <script>
+        const API_BASE = '../../api';
+
+        function requireRole(requiredRole) {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+            if (!token || !user) {
+                window.location.href = 'login.php';
+                return null;
+            }
+
+            if (user.role !== requiredRole) {
+                window.location.href = user.role === 'admin' ? 'dashboard_admin.php' : 'peminjaman_siswa.php';
+                return null;
+            }
+
+            return user;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = { ...(options.headers || {}) };
+
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            if (options.body && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+            }
+
+            const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : '/' + path}`, {
+                ...options,
+                headers,
+            });
+
+            const text = await response.text();
+            let payload = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (e) {
+                payload = { success: false, message: 'Respons tidak valid' };
+            }
+
+            if (!response.ok || (payload && payload.success === false)) {
+                throw new Error(payload?.message || 'Permintaan gagal');
+            }
+
+            return payload;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.php';
+        }
+
+        requireRole('admin');
+
+        let categoryList = [];
+        let booksList = [];
+        let currentBookId = null;
+
+        async function loadCategories() {
+            try {
+                const res = await apiFetch('/categories.php');
+                categoryList = res?.data || [];
+
+                const select = document.getElementById('category_id');
+                const filter = document.getElementById('filter-kategori');
+                select.innerHTML = categoryList.map(c => `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`).join('');
+                filter.innerHTML = '<option value="">Semua kategori</option>' + categoryList.map(c => `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`).join('');
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function loadBooks() {
+            try {
+                const search = document.getElementById('search').value.trim();
+                const categoryId = document.getElementById('filter-kategori').value;
+                const params = new URLSearchParams();
+                if (search) params.append('search', search);
+                if (categoryId) params.append('category_id', categoryId);
+
+                const res = await apiFetch(`/books.php?${params.toString()}`);
+                const books = res?.data || [];
+                booksList = books;
+                const tbody = document.getElementById('table-buku');
+
+                if (!books.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Tidak ada data buku.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = books.map((book) => `
+                    <tr>
+                        <td class="px-4 py-3">
+                            <p class="font-medium">${escapeHtml(book.judul)}</p>
+                        </td>
+                        <td class="px-4 py-3 text-gray-500">${escapeHtml(book.isbn)}</td>
+                        <td class="px-4 py-3 text-gray-500">${escapeHtml(book.nama_kategori || '-')}</td>
+                        <td class="px-4 py-3 text-center">${escapeHtml(book.stok)}</td>
+                        <td class="px-4 py-3 text-right">
+                            <button type="button" onclick="editBook(${book.id})" class="text-sm text-orange-600 mr-3">Edit</button>
+                            <button type="button" onclick="deleteBook(${book.id})" class="text-sm text-red-600">Hapus</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                document.getElementById('table-buku').innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-red-500">${escapeHtml(error.message)}</td></tr>`;
+            }
+        }
+
+        function openModal(book = null) {
+            currentBookId = book?.id || null;
+            document.getElementById('modal-title').textContent = book ? 'Edit buku' : 'Tambah buku baru';
+            document.getElementById('book-id').value = book?.id || '';
+            document.getElementById('judul').value = book?.judul || '';
+            document.getElementById('isbn').value = book?.isbn || '';
+            document.getElementById('category_id').value = book?.category_id || '';
+            document.getElementById('stok').value = book?.stok || 0;
+            document.getElementById('form-error').classList.add('hidden');
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('form-buku').reset();
+            currentBookId = null;
+        }
+
+        function openCategoryModal() {
+            document.getElementById('category-error').classList.add('hidden');
+            document.getElementById('modal-category').classList.remove('hidden');
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('modal-category').classList.add('hidden');
+            document.getElementById('form-kategori').reset();
+        }
+
+        async function deleteBook(id) {
+            if (!confirm('Hapus buku ini?')) return;
+            try {
+                await apiFetch(`/books.php?id=${id}`, { method: 'DELETE' });
+                await loadBooks();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function deleteCategory(id) {
+            if (!confirm('Hapus kategori ini?')) return;
+            try {
+                await apiFetch(`/categories.php?id=${id}`, { method: 'DELETE' });
+                await loadCategories();
+                await loadBooks();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function editBook(id) {
+            const book = booksList.find((item) => item.id === id);
+            if (book) {
+                openModal(book);
+            }
+        }
+
+        document.getElementById('form-buku').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('form-error');
+            errorEl.classList.add('hidden');
+
+            const payload = {
+                judul: document.getElementById('judul').value.trim(),
+                isbn: document.getElementById('isbn').value.trim(),
+                category_id: Number(document.getElementById('category_id').value),
+                stok: Number(document.getElementById('stok').value),
+            };
+
+            try {
+                if (currentBookId) {
+                    await apiFetch(`/books.php?id=${currentBookId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                } else {
+                    await apiFetch('/books.php', { method: 'POST', body: JSON.stringify(payload) });
+                }
+
+                closeModal();
+                await loadBooks();
+            } catch (error) {
+                errorEl.textContent = error.message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('form-kategori').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('category-error');
+            errorEl.classList.add('hidden');
+
+            const payload = {
+                nama_kategori: document.getElementById('nama-kategori').value.trim(),
+            };
+
+            try {
+                await apiFetch('/categories.php', { method: 'POST', body: JSON.stringify(payload) });
+                closeCategoryModal();
+                await loadCategories();
+                await loadBooks();
+            } catch (error) {
+                errorEl.textContent = error.message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('search').addEventListener('input', loadBooks);
+        document.getElementById('filter-kategori').addEventListener('change', loadBooks);
+
+        async function init() {
+            await loadCategories();
+            await loadBooks();
+        }
+
+        init();
+    </script>
 </body>
 </html>

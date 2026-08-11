@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pinjam Buku - Perpustakaan Sekolah</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="auth-guard.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
@@ -50,6 +49,67 @@
     </div>
 
     <script>
+        const API_BASE = '../../api';
+
+        function requireRole(requiredRole) {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+            if (!token || !user) {
+                window.location.href = 'login.php';
+                return null;
+            }
+
+            if (user.role !== requiredRole) {
+                window.location.href = user.role === 'admin' ? 'dashboard_admin.php' : 'peminjaman_siswa.php';
+                return null;
+            }
+
+            return user;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = { ...(options.headers || {}) };
+
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            if (options.body && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+            }
+
+            const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : '/' + path}`, {
+                ...options,
+                headers,
+            });
+
+            const text = await response.text();
+            let payload = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (e) {
+                payload = { success: false, message: 'Respons tidak valid' };
+            }
+
+            if (!response.ok || (payload && payload.success === false)) {
+                throw new Error(payload?.message || 'Permintaan gagal');
+            }
+
+            return payload;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.php';
+        }
+
         const user = requireRole('siswa');
 
         let categories = [];
@@ -60,9 +120,7 @@
             categories = res.data || [];
 
             const filterEl = document.getElementById('filter-kategori');
-            categories.forEach(c => {
-                filterEl.innerHTML += `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`;
-            });
+            filterEl.innerHTML = '<option value="">Semua kategori</option>' + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`).join('');
         }
 
         async function loadJumlahPinjam() {
@@ -94,7 +152,7 @@
                 <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
                     <div class="h-24 bg-orange-200 flex items-center justify-center text2xl">📖</div>
                     <div class="p-3">
-                        <span class="text-xs px-2 py-0.5 rounded bg-orange-50 textorange-800">${escapeHtml(b.nama_kategori)}</span>
+                        <span class="text-xs px-2 py-0.5 rounded bg-orange-50 text-orange-800">${escapeHtml(b.nama_kategori)}</span>
                         <p class="font-medium text-sm mt-1.5">${escapeHtml(b.judul)}</p>
                         <p class="text-xs text-gray-500 mb-2">ISBN ${escapeHtml(b.isbn)}</p>
                         <div class="flex items-center justify-between">
@@ -102,7 +160,7 @@
                             <button
                                 onclick="pinjamBuku(${b.id})"
                                 ${b.stok == 0 ? 'disabled' : ''}
-                                class="text-xs px-3 py-1 rounded-lg border border-gray300 ${b.stok == 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}"
+                                class="text-xs px-3 py-1 rounded-lg border border-gray-300 ${b.stok == 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}"
                             >${b.stok == 0 ? 'Habis' : 'Pinjam'}</button>
                         </div>
                     </div>

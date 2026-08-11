@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Riwayat Peminjaman - Perpustakaan Sekolah</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="auth-guard.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-5">
@@ -43,7 +42,7 @@
         </div>
 
         <div class="flex gap-2 mb-4" id="tab-status">
-            <button data-status="" class="tab-btn px-3 py-1.5 text-sm rounded-lg bgorange-500 text-white">Semua</button>
+            <button data-status="" class="tab-btn px-3 py-1.5 text-sm rounded-lg bg-orange-500 text-white">Semua</button>
             <button data-status="dipinjam" class="tab-btn px-3 py-1.5 text-sm rounded-lg border border-gray-300">Dipinjam</button>
             <button data-status="dikembalikan" class="tab-btn px-3 py-1.5 text-sm rounded-lg border border-gray-300">Dikembalikan</button>
             <button data-status="terlambat" class="tab-btn px-3 py-1.5 text-sm rounded-lg border border-gray-300">Terlambat</button>
@@ -55,6 +54,74 @@
     </div>
 
     <script>
+        const API_BASE = '../../api';
+
+        function requireRole(requiredRole) {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+            if (!token || !user) {
+                window.location.href = 'login.php';
+                return null;
+            }
+
+            if (user.role !== requiredRole) {
+                window.location.href = user.role === 'admin' ? 'dashboard_admin.php' : 'peminjaman_siswa.php';
+                return null;
+            }
+
+            return user;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = { ...(options.headers || {}) };
+
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            if (options.body && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+            }
+
+            const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : '/' + path}`, {
+                ...options,
+                headers,
+            });
+
+            const text = await response.text();
+            let payload = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (e) {
+                payload = { success: false, message: 'Respons tidak valid' };
+            }
+
+            if (!response.ok || (payload && payload.success === false)) {
+                throw new Error(payload?.message || 'Permintaan gagal');
+            }
+
+            return payload;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        function formatTanggal(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.php';
+        }
+
         requireRole('siswa');
 
         let currentStatus = '';
@@ -104,7 +171,7 @@
             };
 
             list.innerHTML = loans.map(l => `
-                <div class="bg-white border border-gray-100 rounded-xl p-3.5 flex itemscenter gap-3">
+                <div class="bg-white border border-gray-100 rounded-xl p-3.5 flex items-center gap-3">
                     <div class="w-11 h-11 rounded-lg bg-orange-200 flex items-center justify-center text-lg flex-shrink-0">📖</div>
                     <div class="flex-1">
                         <p class="font-medium text-sm">${escapeHtml(l.judul)}</p>

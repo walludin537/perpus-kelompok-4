@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kelola Peminjaman - Perpustakaan Sekolah</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="auth-guard.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-6xl mx-auto p-5">
@@ -58,32 +57,102 @@
     </div>
 
     <script>
+        const API_BASE = '../../api';
+
+        function requireRole(requiredRole) {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+            if (!token || !user) {
+                window.location.href = 'login.php';
+                return null;
+            }
+
+            if (user.role !== requiredRole) {
+                window.location.href = user.role === 'admin' ? 'dashboard_admin.php' : 'peminjaman_siswa.php';
+                return null;
+            }
+
+            return user;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = { ...(options.headers || {}) };
+
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            if (options.body && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+            }
+
+            const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : '/' + path}`, {
+                ...options,
+                headers,
+            });
+
+            const text = await response.text();
+            let payload = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (e) {
+                payload = { success: false, message: 'Respons tidak valid' };
+            }
+
+            if (!response.ok || (payload && payload.success === false)) {
+                throw new Error(payload?.message || 'Permintaan gagal');
+            }
+
+            return payload;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        function formatTanggal(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.php';
+        }
+
         requireRole('admin');
 
         let currentStatus = '';
         let allLoans = [];
 
         async function loadLoans() {
-            const params = new URLSearchParams();
-            if (currentStatus) params.append('status', currentStatus);
+            try {
+                const params = new URLSearchParams();
+                if (currentStatus) params.append('status', currentStatus);
 
-            const res = await apiFetch('/loans.php?' + params.toString());
-            if (!res) return;
-
-            allLoans = res.data || [];
-            renderLoans();
+                const res = await apiFetch(`/loans.php?${params.toString()}`);
+                allLoans = res?.data || [];
+                renderLoans();
+            } catch (error) {
+                document.getElementById('table-peminjaman').innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">${escapeHtml(error.message)}</td></tr>`;
+            }
         }
 
         function renderLoans() {
             const search = document.getElementById('search').value.toLowerCase();
             const filtered = allLoans.filter(l =>
-                l.nama_siswa.toLowerCase().includes(search) || l.judul.toLowerCase().includes(search)
+                (l.nama_siswa || '').toLowerCase().includes(search) || (l.judul || '').toLowerCase().includes(search)
             );
 
             const tbody = document.getElementById('table-peminjaman');
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center textgray-400">Tidak ada data.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>';
                 return;
             }
 
@@ -103,12 +172,12 @@
                 <tr>
                     <td class="px-4 py-3">${escapeHtml(l.nama_siswa)}</td>
                     <td class="px-4 py-3">${escapeHtml(l.judul)}</td>
-                    <td class="px-4 py-3 text-gray500">${formatTanggal(l.tanggal_pinjam)}</td>
-                    <td class="px-4 py-3 text-gray500">${formatTanggal(l.batas_kembali)}</td>
-                    <td class="px-4 py-3"><span class="text-xs px-2 py-1 rounded ${badgeClass[l.status]}">${badgeLabel[l.status]}</span></td>
+                    <td class="px-4 py-3 text-gray-500">${formatTanggal(l.tanggal_pinjam)}</td>
+                    <td class="px-4 py-3 text-gray-500">${formatTanggal(l.batas_kembali)}</td>
+                    <td class="px-4 py-3"><span class="text-xs px-2 py-1 rounded ${badgeClass[l.status] || 'bg-gray-50 text-gray-700'}">${badgeLabel[l.status] || l.status}</span></td>
                     <td class="px-4 py-3 text-right">
                         ${l.status === 'dikembalikan'
-                            ? `<span class="text-xs text-gray400">${formatTanggal(l.tanggal_kembali)}</span>`
+                            ? `<span class="text-xs text-gray-400">${formatTanggal(l.tanggal_kembali)}</span>`
                             : `<button onclick="tandaiKembali(${l.id})" class="text-xs border border-gray-300 rounded-lg px-3 py-1 hover:bg-gray-50">Tandai kembali</button>`
                         }
                     </td>
@@ -118,9 +187,12 @@
 
         async function tandaiKembali(id) {
             if (!confirm('Tandai buku ini sebagai sudah dikembalikan?')) return;
-            const res = await apiFetch(`/loans.php?id=${id}`, { method: 'PUT' });
-            if (res.success) loadLoans();
-            else alert(res.message);
+            try {
+                await apiFetch(`/loans.php?id=${id}`, { method: 'PUT' });
+                await loadLoans();
+            } catch (error) {
+                alert(error.message);
+            }
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {

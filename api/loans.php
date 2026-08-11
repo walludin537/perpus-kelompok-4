@@ -27,10 +27,17 @@ switch ($method) {
         break;
     
     case 'PUT':
-        //admin menandai buku sudah dikembalikan
         Auth::checkRole('admin');
-        if(!$id) {
+        if (!$id) {
             http_response_code(422);
-            echo json_encode(['success' => false, 'message' => 'Method tidak diizinkan']);
+            echo json_encode(['success' => false, 'message' => 'ID peminjaman wajib disertakan']);
+            break;
         }
+
+        $controller->markReturned($id);
+        break;
+
+    default:
+        http_response_code(405);
+        echo json_encode(['success' => false, 'message' => 'Method tidak diizinkan']);
 }

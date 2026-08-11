@@ -34,7 +34,7 @@ switch ($method) {
         Auth::checkRole('admin');
         if(!$id) {
             http_response_code(422);
-            echo json_encode(['succes' => false, 'message' => 'ID kategori wajib disertakan']);
+            echo json_encode(['success' => false, 'message' => 'ID kategori wajib disertakan']);
             break;
         }
         $controller->destroy($id);
