@@ -67,8 +67,21 @@ class User {
         ];
 
         foreach ($defaultUsers as $user) {
-            if (!$this->findByUsername($user['username'])) {
+            $existing = $this->findByUsername($user['username']);
+            if (!$existing) {
                 $this->create($user['nama'], $user['username'], $user['password'], $user['role']);
+                continue;
+            }
+
+            if ($existing['role'] !== $user['role']) {
+                if ($this->db) {
+                    try {
+                        $stmt = $this->db->prepare("UPDATE users SET role = :role WHERE username = :username");
+                        $stmt->execute(['role' => $user['role'], 'username' => $user['username']]);
+                    } catch (PDOException $e) {
+                        // abaikan
+                    }
+                }
             }
         }
     }
