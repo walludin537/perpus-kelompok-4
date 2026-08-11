@@ -33,23 +33,27 @@ class BookController
 
     public function store(array $data): void
     {
-        $judul = trim($data['judul'] ?? '');
-        $isbn = trim($data['isbn'] ?? '');
-        $categoryId = (int) ($data['category_id'] ?? 0);
-        $stock = (int) ($data['stok'] ?? 0);
+        try {
+            $judul = trim($data['judul'] ?? $data['title'] ?? '');
+            $isbn = trim($data['isbn'] ?? '');
+            $categoryId = (int) ($data['category_id'] ?? $data['categoryId'] ?? 0);
+            $stock = (int) ($data['stok'] ?? $data['stock'] ?? 0);
 
-        if ($judul === '' || $isbn === '' || $categoryId <= 0 || $stock < 0) {
-            $this->respond(false, 'Judul, ISBN, kategori, dan stok wajib diisi dengan benar', null, 422);
-            return;
+            if ($judul === '' || $isbn === '' || $categoryId <= 0 || $stock < 0) {
+                $this->respond(false, 'Judul, ISBN, kategori, dan stok wajib diisi dengan benar', null, 422);
+                return;
+            }
+
+            if ($this->bookModel->isIsbnExists($isbn)) {
+                $this->respond(false, 'ISBN sudah digunakan', null, 409);
+                return;
+            }
+
+            $id = $this->bookModel->create($judul, $isbn, $categoryId, $stock);
+            $this->respond(true, 'Buku berhasil ditambahkan', ['id' => $id], 201);
+        } catch (PDOException $e) {
+            $this->respond(false, 'Gagal menyimpan buku ke database: ' . $e->getMessage(), null, 500);
         }
-
-        if ($this->bookModel->isIsbnExists($isbn)) {
-            $this->respond(false, 'ISBN sudah digunakan', null, 409);
-            return;
-        }
-
-        $id = $this->bookModel->create($judul, $isbn, $categoryId, $stock);
-        $this->respond(true, 'Buku berhasil ditambahkan', ['id' => $id], 201);
     }
 
     public function update(int $id, array $data): void
@@ -67,6 +71,12 @@ class BookController
 
         if ($judul === '' || $isbn === '' || $categoryId <= 0 || $stock < 0) {
             $this->respond(false, 'Judul, ISBN, kategori, dan stok wajib diisi dengan benar', null, 422);
+            return;
+        }
+
+        $db = Database::getConnection();
+        if (!$db) {
+            $this->respond(false, 'Database tidak tersedia', null, 500);
             return;
         }
 
@@ -104,7 +114,19 @@ class BookController
 
 $method = $_SERVER['REQUEST_METHOD'];
 $id = isset($_GET['id']) ? (int) $_GET['id'] : null;
-$data = json_decode(file_get_contents('php://input'), true) ?? [];
+$data = json_decode(file_get_contents('php://input'), true);
+
+if (!is_array($data) || count($data) === 0) {
+    $data = $_POST;
+    if (!is_array($data) || count($data) === 0) {
+        $rawBody = file_get_contents('php://input');
+        parse_str($rawBody, $data);
+    }
+}
+
+if (!is_array($data)) {
+    $data = [];
+}
 
 $controller = new BookController();
 

@@ -82,24 +82,25 @@ class Book
     }
     public function create(string $judul, string $isbn, int $categoryId, int $stock): int
     {
-        $stmt = $this->db->prepare("INSERT INTO books (judul, isbn, category_id, stock) VALUES (:judul, :isbn, :category_id, :stock)");
+        $stmt = $this->db->prepare("INSERT INTO books (judul, isbn, category_id, stok) VALUES (:judul, :isbn, :category_id, :stok)");
         $stmt->execute([
             'judul' => $judul,
             'isbn' => $isbn,
             'category_id' => $categoryId,
-            'stock' => $stock
+            'stok' => $stock
         ]);
         return (int) $this->db->lastInsertId();
     }
+
     public function update(int $id, string $judul, string $isbn, int $categoryId, int $stock): bool
     {
-        $stmt = $this->db->prepare("UPDATE books SET judul = :judul, isbn = :isbn, category_id = :category_id, stock = :stock WHERE id = :id");
+        $stmt = $this->db->prepare("UPDATE books SET judul = :judul, isbn = :isbn, category_id = :category_id, stok = :stok WHERE id = :id");
         return $stmt->execute([
             'id' => $id,
             'judul' => $judul,
             'isbn' => $isbn,
             'category_id' => $categoryId,
-            'stock' => $stock
+            'stok' => $stock
         ]);
     }
     public function delete(int $id): bool
@@ -109,13 +110,14 @@ class Book
     }
     public function decreaseStock(int $id): bool
     {
-        $stmt = $this->db->prepare("UPDATE books SET stock = stock - 1 WHERE id = :id AND stock > 0");
+        $stmt = $this->db->prepare("UPDATE books SET stok = stok - 1 WHERE id = :id AND stok > 0");
         $stmt->execute(['id' => $id]);
-        return $stmt->rowCount() > 0; // pastikan baris benar benar berkurang, bukan cuma query sukses
+        return $stmt->rowCount() > 0;
     }
+
     public function increaseStock(int $id): bool
     {
-        $stmt = $this->db->prepare("UPDATE books SET stock = stock + 1 WHERE id = :id");
+        $stmt = $this->db->prepare("UPDATE books SET stok = stok + 1 WHERE id = :id");
         $stmt->execute(['id' => $id]);
         return $stmt->rowCount() > 0;
     }
