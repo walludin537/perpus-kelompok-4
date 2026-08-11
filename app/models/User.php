@@ -59,6 +59,40 @@ class User {
         return $fallbackUsers[$username]['id'];
     }
 
+    public function verifyPassword($password, $storedPassword): bool
+    {
+        $password = (string) $password;
+        $storedPassword = (string) $storedPassword;
+
+        if ($password === '' || $storedPassword === '') {
+            return false;
+        }
+
+        if (password_verify($password, $storedPassword)) {
+            return true;
+        }
+
+        return $storedPassword === $password;
+    }
+
+    public function updatePassword($username, $password): bool
+    {
+        $username = strtolower(trim((string) $username));
+        $hashedPassword = password_hash((string) $password, PASSWORD_DEFAULT);
+
+        if ($this->db) {
+            try {
+                $stmt = $this->db->prepare("UPDATE users SET password = :password WHERE username = :username");
+                $stmt->execute(['password' => $hashedPassword, 'username' => $username]);
+                return true;
+            } catch (PDOException $e) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     public function ensureDefaultUsers()
     {
         $defaultUsers = [
@@ -73,11 +107,16 @@ class User {
                 continue;
             }
 
-            if ($existing['role'] !== $user['role']) {
+            $needsPasswordUpdate = !$this->verifyPassword($user['password'], $existing['password']);
+            if ($existing['role'] !== $user['role'] || $needsPasswordUpdate) {
                 if ($this->db) {
                     try {
-                        $stmt = $this->db->prepare("UPDATE users SET role = :role WHERE username = :username");
-                        $stmt->execute(['role' => $user['role'], 'username' => $user['username']]);
+                        $stmt = $this->db->prepare("UPDATE users SET role = :role, password = :password WHERE username = :username");
+                        $stmt->execute([
+                            'role' => $user['role'],
+                            'password' => password_hash($user['password'], PASSWORD_DEFAULT),
+                            'username' => $user['username'],
+                        ]);
                     } catch (PDOException $e) {
                         // abaikan
                     }

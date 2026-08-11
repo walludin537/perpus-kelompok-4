@@ -45,10 +45,15 @@ class AuthController
         }
 
         $user = $this->userModel->findByUsername($username);
+        $isValidPassword = $user ? $this->userModel->verifyPassword($password, $user['password']) : false;
 
-        if (!$user || !password_verify($password, $user['password'])) {
+        if (!$user || !$isValidPassword) {
             $this->respond(false, 'Username atau kata sandi salah', null, 401);
             return;
+        }
+
+        if (!password_verify($password, $user['password']) && $isValidPassword) {
+            $this->userModel->updatePassword($user['username'], $password);
         }
 
         $token = Jwt::encode([
