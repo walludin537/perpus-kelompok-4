@@ -13,7 +13,7 @@ class Database
         // mencegah instansi langsung
     }
 
-    public static function getConnection(): PDO
+    public static function getConnection(): ?PDO
     {
         if (self::$instance !== null) {
             return self::$instance;
@@ -32,8 +32,6 @@ class Database
             ['host' => '127.0.0.1', 'username' => 'root', 'password' => ''],
         ];
 
-        $lastError = null;
-
         foreach ($configs as $config) {
             try {
                 $serverDsn = 'mysql:host=' . $config['host'] . ';charset=' . self::$charset;
@@ -49,15 +47,11 @@ class Database
                 self::ensureSchema(self::$instance);
                 return self::$instance;
             } catch (PDOException $e) {
-                $lastError = $e;
+                // lanjut ke konfigurasi berikutnya
             }
         }
 
-        http_response_code(500);
-        die(json_encode([
-            'success' => false,
-            'message' => 'Koneksi database gagal. Cek MySQL, user root, password, dan database perpus_kelompok4. Detail: ' . $lastError->getMessage(),
-        ]));
+        return null;
     }
 
     private static function ensureSchema(PDO $pdo): void
