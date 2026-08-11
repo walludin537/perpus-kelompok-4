@@ -165,7 +165,7 @@
             try {
                 payload = text ? JSON.parse(text) : null;
             } catch (e) {
-                payload = { success: false, message: 'Respons tidak valid' };
+                payload = { success: false, message: text || 'Respons tidak valid' };
             }
 
             if (!response.ok || (payload && payload.success === false)) {
