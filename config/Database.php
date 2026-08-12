@@ -103,7 +103,30 @@ class Database
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
 
-        $pdo->exec("INSERT IGNORE INTO users (id, nama, username, password, role) VALUES (1, 'Admin', 'admin', '$2y$10$hQ51qjMIo/z1S6hRigkGjO7EIgvBo5/x4kWA92Zl0KnUnU4VWP4JS', 'admin')");
-        $pdo->exec("INSERT IGNORE INTO users (id, nama, username, password, role) VALUES (2, 'Siswa', 'siswa', '$2y$10$m1bnHJWSNGHtaAOQjzL8T.4Tc3JW2pNmUk1zQCg0DzCpfOPpvgr/y', 'siswa')");
+        // PENTING: hash bcrypt (mengandung karakter '$') TIDAK BOLEH ditulis langsung
+        // di dalam string double-quote PHP ("...") karena '$' akan dianggap awal
+        // variabel dan memicu "Undefined variable" warning yang merusak output JSON.
+        // Solusi: pakai prepared statement dengan parameter terikat (bind),
+        // supaya nilai hash dikirim sebagai DATA, bukan diproses sebagai kode PHP.
+        $insertUser = $pdo->prepare(
+            "INSERT IGNORE INTO users (id, nama, username, password, role)
+             VALUES (:id, :nama, :username, :password, :role)"
+        );
+
+        $insertUser->execute([
+            'id' => 1,
+            'nama' => 'Admin',
+            'username' => 'admin',
+            'password' => password_hash('admin123', PASSWORD_DEFAULT),
+            'role' => 'admin',
+        ]);
+
+        $insertUser->execute([
+            'id' => 2,
+            'nama' => 'Siswa',
+            'username' => 'siswa',
+            'password' => password_hash('siswa123', PASSWORD_DEFAULT),
+            'role' => 'siswa',
+        ]);
     }
 }
