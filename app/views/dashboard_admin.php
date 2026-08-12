@@ -118,6 +118,24 @@
             return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
         }
 
+        function normalizeLoanList(payload) {
+            const raw = Array.isArray(payload)
+                ? payload
+                : Array.isArray(payload?.data)
+                    ? payload.data
+                    : Array.isArray(payload?.items)
+                        ? payload.items
+                        : [];
+
+            return raw.map((loan) => ({
+                id: loan?.id ?? 0,
+                nama_siswa: loan?.nama_siswa || loan?.nama || loan?.user_name || 'Siswa',
+                judul: loan?.judul || loan?.book_title || 'Judul tidak tersedia',
+                status: String(loan?.status || 'dipinjam').toLowerCase(),
+                tanggal_pinjam: loan?.tanggal_pinjam || loan?.created_at || null,
+            }));
+        }
+
         function logout() {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
@@ -133,8 +151,8 @@
                     apiFetch('/loans.php')
                 ]);
 
-                const books = booksRes?.data || [];
-                const loans = loansRes?.data || [];
+                const books = Array.isArray(booksRes?.data) ? booksRes.data : [];
+                const loans = normalizeLoanList(loansRes);
 
                 document.getElementById('stat-total-buku').textContent = books.length;
                 document.getElementById('stat-total-stok').textContent = books.reduce((sum, b) => sum + Number(b.stok || 0), 0);
@@ -160,12 +178,12 @@
                 };
 
                 list.innerHTML = loans.slice(0, 8).map(l => `
-                    <div class="flex items-center justify-between py-3">
-                        <div>
-                            <p>${escapeHtml(l.nama_siswa)} - <span class="font-medium">${escapeHtml(l.judul)}</span></p>
+                    <div class="flex items-center justify-between py-3 gap-3">
+                        <div class="min-w-0">
+                            <p class="truncate"><span class="font-medium">${escapeHtml(l.nama_siswa)}</span> - ${escapeHtml(l.judul)}</p>
                             <p class="text-xs text-gray-400">Dipinjam ${formatTanggal(l.tanggal_pinjam)}</p>
                         </div>
-                        <span class="text-xs px-2 py-1 rounded ${badgeClass[l.status] || 'bg-gray-50 text-gray-700'}">${badgeLabel[l.status] || l.status}</span>
+                        <span class="text-xs px-2 py-1 rounded whitespace-nowrap ${badgeClass[l.status] || 'bg-gray-50 text-gray-700'}">${badgeLabel[l.status] || l.status}</span>
                     </div>
                 `).join('');
             } catch (error) {
