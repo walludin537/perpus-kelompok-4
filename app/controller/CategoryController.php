@@ -39,8 +39,21 @@ class CategoryController
             return;
         }
 
-        $id = $this->categoryModel->create($nama);
-        $this->respond(true, 'Kategori berhasil ditambahkan', ['id' => $id], 201);
+        // Cek duplikat dulu SEBELUM insert, supaya tidak menabrak constraint
+        // UNIQUE di database (yang sebelumnya bikin fatal error kalau lolos ke sini).
+        if ($this->categoryModel->isNameExists($nama)) {
+            $this->respond(false, "Kategori \"$nama\" sudah ada", null, 409);
+            return;
+        }
+
+        try {
+            $id = $this->categoryModel->create($nama);
+            $this->respond(true, 'Kategori berhasil ditambahkan', ['id' => $id], 201);
+        } catch (PDOException $e) {
+            // Lapisan pengaman kedua: kalau ada request lain yang nyaris
+            // bersamaan berhasil insert nama yang sama duluan (race condition).
+            $this->respond(false, "Kategori \"$nama\" sudah ada", null, 409);
+        }
     }
 
     public function update(int $id, array $data): void
@@ -61,8 +74,17 @@ class CategoryController
             return;
         }
 
-        $this->categoryModel->update($id, $nama);
-        $this->respond(true, 'Kategori berhasil diperbarui');
+        if ($this->categoryModel->isNameExists($nama, $id)) {
+            $this->respond(false, "Kategori \"$nama\" sudah dipakai kategori lain", null, 409);
+            return;
+        }
+
+        try {
+            $this->categoryModel->update($id, $nama);
+            $this->respond(true, 'Kategori berhasil diperbarui');
+        } catch (PDOException $e) {
+            $this->respond(false, "Kategori \"$nama\" sudah dipakai kategori lain", null, 409);
+        }
     }
 
     public function destroy(int $id): void

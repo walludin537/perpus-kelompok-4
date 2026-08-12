@@ -40,6 +40,39 @@ class Category
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Cek apakah nama kategori sudah dipakai (case-insensitive).
+     * Dipanggil sebelum create()/update() supaya tidak menabrak
+     * constraint UNIQUE di database (yang kalau lolos akan
+     * menyebabkan fatal error PDOException).
+     */
+    public function isNameExists(string $namaKategori, ?int $excludeId = null): bool
+    {
+        if (!$this->db) {
+            foreach (self::$fallbackCategories as $category) {
+                if ((int) $category['id'] === $excludeId) {
+                    continue;
+                }
+                if (strtolower($category['nama_kategori']) === strtolower($namaKategori)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        $sql = "SELECT id FROM categories WHERE LOWER(nama_kategori) = LOWER(:nama_kategori)";
+        $params = ['nama_kategori' => $namaKategori];
+
+        if ($excludeId !== null) {
+            $sql .= " AND id != :id";
+            $params['id'] = $excludeId;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (bool) $stmt->fetch();
+    }
+
     public function create(string $namaKategori): int
     {
         if (!$this->db) {
