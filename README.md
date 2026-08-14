@@ -1,12 +1,16 @@
 # Sistem Peminjaman Buku Perpustakaan Sekolah
 
-Proyek kelompok-4 tema perpus dengan mengguanakan konsep- OOP + PDO + MVC + API CRUD, Tailwind CSS (CDN), autentikasi JWT.
+Proyek kelompok - OOP + PDO + MVC + API CRUD, Tailwind CSS (CDN), autentikasi JWT.
 
 ## Struktur folder
 
 ```
 PERPUS-KELOMPOK-4/
-├── index.php               # Entry point utama - redirect otomatis ke login/dashboard
+├── index.php                # Redirect jaga-jaga ke public/index.php
+├── public/                  # SATU-SATUNYA entry point aplikasi (front controller)
+│   ├── index.php            # Router utama, semua halaman lewat sini (?page=...)
+│   └── assets/
+│       └── auth-guard.js    # Helper JS bersama (auth, fetch API, dsb)
 ├── api/                   # Endpoint API (JSON, dilindungi JWT)
 │   ├── auth.php           # POST ?action=login | ?action=register
 │   ├── books.php          # GET/POST/PUT/DELETE
@@ -15,7 +19,7 @@ PERPUS-KELOMPOK-4/
 ├── app/
 │   ├── controller/        # Logika request -> model -> respons JSON
 │   ├── models/             # OOP + PDO, satu class per tabel
-│   └── views/              # Halaman HTML + Tailwind CDN + fetch API
+│   └── views/              # Halaman HTML + Tailwind CDN (di-require oleh public/index.php, TIDAK diakses langsung)
 ├── config/
 │   ├── Database.php        # Koneksi PDO (singleton)
 │   ├── Jwt.php              # JWT custom (HS256, tanpa library eksternal)
@@ -23,6 +27,21 @@ PERPUS-KELOMPOK-4/
 │   └── schema.sql           # Skema database + data kategori contoh
 └── README.md
 ```
+
+## Cara mengakses halaman (routing)
+
+Semua halaman sekarang lewat satu pintu masuk `public/index.php`, dengan parameter `?page=`:
+
+| URL | Halaman |
+|---|---|
+| `public/index.php?page=login` | Login |
+| `public/index.php?page=dashboard_admin` | Dashboard admin |
+| `public/index.php?page=data_buku` | Data buku (admin) |
+| `public/index.php?page=kelola_peminjaman` | Kelola peminjaman (admin) |
+| `public/index.php?page=peminjaman_siswa` | Pinjam buku (siswa) |
+| `public/index.php?page=riwayat_siswa` | Riwayat peminjaman (siswa) |
+
+File di `app/views/*.php` **tidak lagi diakses langsung** oleh browser — kalau dibuka langsung (misal `app/views/login.php`), halaman itu masih akan jalan (PHP-nya valid), tapi **path relative-nya salah** (fetch API, link navigasi, dsb dihitung relative terhadap `public/`). Selalu akses lewat `public/index.php?page=...`.
 
 ## Cara setup
 
@@ -45,10 +64,11 @@ PERPUS-KELOMPOK-4/
    ```
    php -S localhost:8000
    ```
-   Lalu buka `http://localhost:8000/PERPUS-KELOMPOK-4/` (otomatis diarahkan `index.php` ke halaman login, atau ke dashboard kalau sudah login).
+   Lalu buka `http://localhost:8000/PERPUS-KELOMPOK-4/public/index.php?page=login`
 
-   > Path API di file JS (`app/views/auth-guard.js`) sudah memakai relative path (`../../api`),
-   > jadi proyek ini bisa dipindah ke folder/document root manapun tanpa perlu diubah lagi.
+   > Kalau pakai XAMPP/Laragon/AppServ, document root tetap folder project (bukan `public/` saja),
+   > karena folder `api/` juga perlu bisa diakses langsung oleh browser (dipanggil lewat `fetch()`).
+   > Jadi `public/` di sini murni konvensi/organisasi kode MVC, bukan pemisah akses web server yang ketat.
 
 ## Alur autentikasi
 
@@ -63,3 +83,17 @@ PERPUS-KELOMPOK-4/
 - Status peminjaman otomatis berubah jadi `terlambat` kalau melewati `batas_kembali` (dicek tiap kali data peminjaman diambil).
 - Stok buku otomatis berkurang saat dipinjam dan bertambah saat ditandai dikembalikan.
 - ISBN unik, tidak bisa duplikat antar buku.
+
+## Perbaikan yang sudah dilakukan (review kedua)
+
+- Path API di frontend diganti jadi relative (`../../api`) agar tidak error kalau proyek dipindah folder/document root.
+- `Jwt::getBearerToken()` sekarang punya fallback kalau fungsi `getallheaders()` tidak tersedia di server (umum terjadi di setup nginx + php-fpm).
+- Proses **pinjam buku** dan **tandai kembali** sekarang dibungkus database transaction + row locking (`FOR UPDATE`), supaya stok tidak salah hitung kalau dua siswa mengajukan pinjam buku yang sama di waktu bersamaan.
+- Tombol "Edit" di halaman Data Buku tidak lagi menyisipkan JSON mentah ke atribut `onclick` (berisiko rusak kalau judul buku mengandung tanda kutip) — sekarang pakai lookup by ID.
+- Semua data dari database (judul, ISBN, nama kategori, nama siswa) di-escape sebelum ditampilkan di halaman, supaya karakter khusus tidak merusak tampilan.
+
+## Yang masih perlu kamu lengkapi
+
+- Halaman untuk admin mengelola kategori (CRUD kategori sudah ada di API `categories.php`, tinggal buat view-nya kalau perlu).
+- Validasi format ISBN yang lebih ketat kalau diperlukan dosen/guru pembimbing.
+- Penyesuaian `config/Jwt.php` `$secretKey` untuk production (jangan pakai nilai default).
