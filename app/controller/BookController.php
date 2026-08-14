@@ -4,7 +4,7 @@ require_once __DIR__ . '/../models/Book.php';
 
 class BookController
 {
-    private Book $bookModel;
+    private $bookModel;
 
     public function __construct()
     {
