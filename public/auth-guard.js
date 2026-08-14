@@ -13,7 +13,7 @@ function getUser() {
     return JSON.parse(localStorage.getItem('user') || 'null');
 }
 
-function logout() {
+function logout() { 
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '?page=login';
