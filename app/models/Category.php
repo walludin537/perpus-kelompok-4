@@ -13,6 +13,7 @@ class Category
     {
         $this->db = Database::getConnection();
     }
+
     public function getAll(): array
     {
         if (!$this->db) {
@@ -114,4 +115,3 @@ class Category
         return $stmt->execute(['id' => $id]);
     }
 }
-

@@ -141,4 +141,3 @@ loadRiwayat();
 
 </body>
 </html>
-

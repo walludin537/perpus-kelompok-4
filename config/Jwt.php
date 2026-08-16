@@ -1,59 +1,116 @@
 <?php
-require_once __DIR__ . '/Jwt.php';
 
 /**
- * Class Auth
- * Middleware sederhana untuk memvalidasi JWT dan role user
- * sebelum request diteruskan ke controller.
+ * Class Jwt
+ * Implementasi JWT (JSON Web Token) sederhana dengan algoritma HS256.
+ * Dibuat manual (tanpa library eksternal / composer) agar sesuai
+ * ketentuan proyek: tidak pakai library eksternal kecuali diminta.
  */
-class Auth
+class Jwt
 {
-    /**
-     * Memastikan request punya token JWT yang valid.
-     * Menghentikan request (401) jika tidak valid.
-     * Mengembalikan payload user (id, username, role) jika valid.
-     */
-    public static function check(): array
-    {
-        $token = Jwt::getBearerToken();
+    // Ganti dengan secret key yang lebih aman untuk production
+    private static $secretKey = 'ganti_secret_key_kelompok4_2026';
+    private static $expireSeconds = 86400; // 24 jam
 
-        if (!$token) {
-self::unauthorized('Token tidak ditemukan');
+    private static function base64UrlEncode(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+
+    private static function base64UrlDecode(string $data): string
+    {
+        $remainder = strlen($data) % 4;
+        if ($remainder) {
+            $data .= str_repeat('=', 4 - $remainder);
+        }
+        return base64_decode(strtr($data, '-_', '+/'));
+    }
+
+    /**
+     * Membuat token JWT baru dari payload (misalnya id user & role)
+     */
+    public static function encode(array $payload): string
+    {
+        $header = ['typ' => 'JWT', 'alg' => 'HS256'];
+
+        $payload['iat'] = time();
+        $payload['exp'] = time() + self::$expireSeconds;
+
+        $headerEncoded  = self::base64UrlEncode(json_encode($header));
+        $payloadEncoded = self::base64UrlEncode(json_encode($payload));
+
+        $signature = hash_hmac(
+            'sha256',
+            $headerEncoded . '.' . $payloadEncoded,
+            self::$secretKey,
+            true
+        );
+        $signatureEncoded = self::base64UrlEncode($signature);
+
+        return $headerEncoded . '.' . $payloadEncoded . '.' . $signatureEncoded;
+    }
+
+    /**
+     * Memverifikasi dan mendekode token JWT.
+     * Mengembalikan array payload jika valid, atau false jika tidak valid/kedaluwarsa.
+     *
+     * @return array|false
+     */
+    public static function decode(string $token)
+    {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return false;
         }
 
-        $payload = Jwt::decode($token);
+        $headerEncoded = $parts[0];
+        $payloadEncoded = $parts[1];
+        $signatureEncoded = $parts[2];
 
-        if (!$payload) {
-            self::unauthorized('Token tidak valid atau kedaluwarsa');
+        $signature = self::base64UrlEncode(hash_hmac(
+            'sha256',
+            $headerEncoded . '.' . $payloadEncoded,
+            self::$secretKey,
+            true
+        ));
+
+        if (!hash_equals($signature, $signatureEncoded)) {
+            return false; // Tanda tangan tidak valid
+        }
+
+        $payload = json_decode(self::base64UrlDecode($payloadEncoded), true);
+
+        if (!$payload || (isset($payload['exp']) && $payload['exp'] < time())) {
+            return false; // Token kedaluwarsa
         }
 
         return $payload;
     }
 
     /**
-     * Memastikan user yang login punya role tertentu (misalnya 'admin').
+     * Mengambil token dari header Authorization: Bearer <token>
      */
-    public static function checkRole(string $requiredRole): array
+    public static function getBearerToken(): ?string
     {
-        $payload = self::check();
+        $authHeader = '';
 
-        if (($payload['role'] ?? '') !== $requiredRole) {
-            http_response_code(403);
-            die(json_encode([
-'message' => 'Akses ditolak, khusus untuk role ' . $requiredRole,
-            ]));
+        // getallheaders() tidak selalu tersedia (mis. di beberapa setup nginx + php-fpm)
+        if (function_exists('getallheaders')) {
+            $headers = getallheaders();
+            $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
         }
 
-        return $payload;
-    }
+        // Fallback: ambil langsung dari $_SERVER kalau getallheaders() tidak ada/kosong
+        if ($authHeader === '') {
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+                ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+                ?? '';
+        }
 
-    private static function unauthorized(string $message): void
-    {
-        http_response_code(401);
-        die(json_encode([
-            'success' => false,
-            'message' => $message,
-        ]));
+        if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
     }
 }
-?>

@@ -13,7 +13,7 @@ function getUser() {
     return JSON.parse(localStorage.getItem('user') || 'null');
 }
 
-function logout() { 
+function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '?page=login';
@@ -36,7 +36,13 @@ function requireRole(requiredRole) {
 
     return user;
 }
-// Wrapper fetch yang otomatis menyertakan header Authorization: Bearer <token>
+
+// Wrapper fetch yang otomatis menyertakan header Authorization: Bearer <token>.
+// PENTING: function ini didesain supaya TIDAK PERNAH throw tanpa tertangkap -
+// kalau fetch gagal (server mati, path salah) atau response bukan JSON valid
+// (biasanya PHP fatal error), tetap balikin object {success:false, message:...}
+// yang konsisten, supaya halaman yang manggil nggak macet selamanya di
+// "Memuat data..." tanpa penjelasan apa-apa.
 async function apiFetch(path, options = {}) {
     const token = getToken();
     const headers = Object.assign(
@@ -45,14 +51,33 @@ async function apiFetch(path, options = {}) {
         token ? { Authorization: 'Bearer ' + token } : {}
     );
 
-    const res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+    let res;
+    try {
+        res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+    } catch (networkErr) {
+        // fetch() sendiri gagal total - server PHP nggak jalan, path API_BASE
+        // salah, atau masalah jaringan/CORS.
+        return {
+            success: false,
+            message: 'Gagal terhubung ke server. Pastikan server PHP aktif dan path API benar.',
+        };
+    }
 
     if (res.status === 401) {
         logout();
         return null;
     }
 
-    return res.json();
+    try {
+        return await res.json();
+    } catch (parseErr) {
+        // Response diterima tapi bukan JSON valid - biasanya karena PHP
+        // fatal error yang keluar sebagai HTML/teks, bukan JSON.
+        return {
+            success: false,
+            message: 'Server mengembalikan respons yang tidak valid (kemungkinan ada error di backend PHP). Cek tab Network di DevTools untuk detail.',
+        };
+    }
 }
 
 function formatTanggal(dateStr) {

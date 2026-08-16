@@ -23,6 +23,7 @@ class Book
         $sql = $this->baseQuery();
         $params = [];
         $conditions = [];
+
         if ($search) {
             $conditions[] = '(books.judul LIKE :search OR books.isbn LIKE :search)';
             $params['search'] = '%' . $search . '%';
@@ -131,4 +132,3 @@ class Book
         return $stmt->rowCount() > 0;
     }
 }
-

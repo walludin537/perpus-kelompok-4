@@ -33,7 +33,10 @@
             <h1 class="text-xl font-medium mb-1">Data buku</h1>
             <p class="text-gray-500 text-sm">Kelola koleksi buku perpustakaan.</p>
         </div>
-        <button onclick="openModal()" class="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2 rounded-lg">+ Tambah buku</button>
+        <div class="flex gap-2">
+            <button onclick="openCategoryModal()" class="bg-white hover:bg-gray-50 text-gray-700 text-sm px-4 py-2 rounded-lg border border-gray-300">+ Kategori</button>
+            <button onclick="openModal()" class="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2 rounded-lg">+ Tambah buku</button>
+        </div>
     </div>
 
     <!-- Search + filter -->
@@ -103,24 +106,88 @@
     </div>
 </div>
 
+<!-- Modal tambah kategori -->
+<div id="category-modal" class="hidden fixed inset-0 bg-black/45 flex items-center justify-center p-4" style="z-index: 60;">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-xs">
+        <div class="flex items-center justify-between mb-4">
+            <p class="font-medium">Tambah kategori baru</p>
+            <button onclick="closeCategoryModal()" class="text-gray-400 hover:text-gray-700">&times;</button>
+        </div>
+
+        <form id="form-category" class="space-y-3">
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">Nama kategori</label>
+                <input id="nama_kategori" type="text" required placeholder="Contoh: Fantasi" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+
+            <p id="category-form-error" class="text-sm text-red-600 hidden"></p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeCategoryModal()" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm">Batal</button>
+                <button type="submit" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-sm">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 requireRole('admin');
 
 let categories = [];
 let currentBooks = [];
 
-async function loadCategories() {
+async function loadCategories(selectNewestId = null) {
     const res = await apiFetch('/categories.php');
     if (!res) return;
     categories = res.data || [];
 
     const filterEl = document.getElementById('filter-kategori');
     const selectEl = document.getElementById('category_id');
+
+    filterEl.innerHTML = '<option value="">Semua kategori</option>';
+    selectEl.innerHTML = '';
+
     categories.forEach(c => {
         filterEl.innerHTML += `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`;
         selectEl.innerHTML += `<option value="${c.id}">${escapeHtml(c.nama_kategori)}</option>`;
     });
+
+    if (selectNewestId) {
+        selectEl.value = selectNewestId;
+    }
 }
+
+function openCategoryModal() {
+    document.getElementById('category-form-error').classList.add('hidden');
+    document.getElementById('form-category').reset();
+    document.getElementById('category-modal').classList.remove('hidden');
+}
+
+function closeCategoryModal() {
+    document.getElementById('category-modal').classList.add('hidden');
+}
+
+document.getElementById('form-category').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const namaKategori = document.getElementById('nama_kategori').value;
+
+    const res = await apiFetch('/categories.php', {
+        method: 'POST',
+        body: JSON.stringify({ nama_kategori: namaKategori })
+    });
+
+    if (!res.success) {
+        const err = document.getElementById('category-form-error');
+        err.textContent = res.message;
+        err.classList.remove('hidden');
+        return;
+    }
+
+    closeCategoryModal();
+    // Refresh dropdown kategori di form buku, langsung pilih kategori yang baru dibuat
+    await loadCategories(res.data.id);
+});
 
 async function loadBooks() {
     const search = document.getElementById('search').value;

@@ -13,6 +13,7 @@
  * Local File Inclusion (LFI) - hanya halaman yang terdaftar
  * yang bisa di-load, apapun input ?page= dari user.
  */
+
 $page = $_GET['page'] ?? 'login';
 
 $allowedPages = [

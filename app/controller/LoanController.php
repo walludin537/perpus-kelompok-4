@@ -127,7 +127,7 @@ class LoanController
         }
 
         $this->respond(true, 'Buku berhasil ditandai sebagai dikembalikan');
-            }
+    }
 
     private function respond(bool $success, string $message, $data = null, int $code = 200): void
     {
@@ -139,4 +139,3 @@ class LoanController
         ]);
     }
 }
-

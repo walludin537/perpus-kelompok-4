@@ -62,7 +62,7 @@ class Loan
         );
         $stmt->execute(['user_id' => $userId]);
         return (int) $stmt->fetch()['total'];
-}
+    }
 
     public function getMaxLoanPerUser(): int
     {
